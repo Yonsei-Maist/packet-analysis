@@ -32,6 +32,7 @@ git clone https://github.com/Yonsei-Maist/packet-analysis.git
 <!-- AUTHOR -->
 ## Author
 Mina Kim, Yonsei Univ. Researcher since 2020.08  
+Chanwoo Gwon, Yonsei Univ. Researcher since 2020.05. ~  
 
 <!-- MAINTAINER -->
 ## Maintainer
