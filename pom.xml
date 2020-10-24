@@ -6,24 +6,12 @@
     <groupId>kr.ac.yonsei</groupId>
     <artifactId>packet-analysis</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>7</source>
-                    <target>7</target>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
 
     <repositories>
         <repository>
-            <id>local-repository</id>
-            <name>local-repository</name>
-            <url>file://${project.basedir}/lib</url>
+            <id>clojars</id>
+            <name>clojars</name>
+            <url>https://repo.clojars.org/</url>
         </repository>
         <repository>
             <id>maven-public</id>
@@ -32,6 +20,11 @@
         </repository>
     </repositories>
     <distributionManagement>
+        <repository>
+            <id>maven-public</id>
+            <name>maven-public</name>
+            <url>http://165.132.221.44:8888/repository/maven-public/</url>
+        </repository>
         <snapshotRepository>
             <id>maven-snapshots</id>
             <name>maven-snapshots</name>
@@ -39,13 +32,34 @@
         </snapshotRepository>
     </distributionManagement>
 
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
     <dependencies>
+        <!-- https://mvnrepository.com/artifact/jnetpcap/jnetpcap -->
         <dependency>
             <groupId>jnetpcap</groupId>
-            <artifactId>pcap</artifactId>
-            <version>1.4.r1425-1</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/jnetpcap/pcap/1.4.r1425-1/jnetpcap.jar</systemPath>
+            <artifactId>jnetpcap</artifactId>
+            <version>1.4.r1425-1d</version>
         </dependency>
     </dependencies>
+
+    <build>
+        <resources>
+            <resource>
+                <directory>${basedir}/src/main/resources</directory>
+            </resource>
+        </resources>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

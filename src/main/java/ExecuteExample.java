@@ -3,9 +3,9 @@ import packet.PacketCapture;
 public class ExecuteExample {
 
     public static void main(String[] args) throws Exception {
-        PacketCapture packetCapture = new PacketCapture();
+        String baseURL = "C:/Temp/packet_capture/";
+        PacketCapture packetCapture = PacketCapture.getInstance(baseURL);
         packetCapture.findNetworkDevice();
-        packetCapture.packetOpen();
         packetCapture.packetDumper(100);
     }
 }

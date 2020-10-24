@@ -1,3 +1,9 @@
+/**
+ * @Author Mina Kim, Yonsei Univ. Researcher, since 2020.08. ~
+ * @Author Chanwoo Gwon, Yonsei Univ. Researcher, since 2020.05. ~
+ * @Date 2020.10.22
+ */
+
 package packet;
 
 import org.jnetpcap.Pcap;
@@ -7,26 +13,73 @@ import org.jnetpcap.packet.PcapPacket;
 import org.jnetpcap.packet.PcapPacketHandler;
 
 import java.io.File;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Scanner;
 
+/**
+ * Packet capture class (singleton design)
+ * 1. capture the packet of server
+ * 2. save to .pcap file all packet
+ * 3. start/stop thread pool
+ * 4. loop to capture / save file each {packetCapture} packets are captured
+ */
 public class PacketCapture {
-
     public static StringBuilder errorBuffer;
-    public static PcapIf netInterface;
-    public static Pcap pcap;
+    public static PacketCapture instance = null;
+    public static PacketCapture getInstance(String baseURL) throws Exception {
+        if (instance != null)
+            return instance;
 
+        return new PacketCapture(baseURL);
+    }
+
+    public HashMap<PcapIf, Pcap> netInterface = new HashMap<PcapIf, Pcap>();
+
+    private ArrayList<PCAPLooper> threadPool = new ArrayList<PCAPLooper>();
+    private String baseURL = "";
+
+    private PacketCapture(String baseURL) throws Exception {
+        this.baseURL = baseURL;
+        String os = System.getProperty("os.name");
+        String arch = System.getProperty("os.arch");
+        System.out.println(os);
+        System.out.println(arch);
+        ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+        URL url = null;
+
+        // load native library
+        if (os.toLowerCase().contains("windows")) {
+            url = classloader.getResource("windows64/jnetpcap.dll");
+        } else if (os.toLowerCase().contains("linux")) {
+            if (arch.contains("amd64")) {
+                url = classloader.getResource("linux-amd64/libjnetpcap.so");
+            } else {
+                url = classloader.getResource("linux-i386/libjnetpcap.so");
+            }
+        }
+
+        if (url != null) {
+            System.load(url.getPath());
+        } else {
+            throw new Exception("We do not support this os.");
+        }
+    }
     /**
      * Get a list of devices
      */
     public void findNetworkDevice() {
 
-        Scanner scanner = new Scanner(System.in);
+        int snaplen = 64 * 1024; // Truncate packet at this size
+        int flags = Pcap.MODE_NON_PROMISCUOUS;
+        int timeout = 10 * 1000; // in milliseconds
+
         errorBuffer = new StringBuilder(); // error
         ArrayList<PcapIf> allDevice = new ArrayList<PcapIf>(); // list of devices
 
@@ -36,35 +89,17 @@ public class PacketCapture {
             return;
         }
 
-        for (int i=0; i<allDevice.size(); i++) {
-            String description = "";
-            if(allDevice.get(i).getDescription() != null){
-                description = allDevice.get(i).getDescription();
+        for (PcapIf pcapIf : allDevice) {
+            Pcap pcap = Pcap.openLive(pcapIf.getName(), snaplen, flags, timeout, errorBuffer);
+
+            if(pcap != null) {
+                netInterface.put(pcapIf, pcap);
+                // return;
             }
-            else {
-                description = "No device description.";
-            }
-            System.out.println("#" + i + ": " + allDevice.get(i).getName() + ":" + description);
         }
-        System.out.print("Enter device number :");
-        int deviceIndex = scanner.nextInt();
 
-        netInterface = allDevice.get(deviceIndex); // selected device
-    }
-
-    /**
-     * Open a network interface for live capture
-     */
-    public void packetOpen() {
-
-        int snaplen = 64 * 1024; // Truncate packet at this size
-        int flags = Pcap.MODE_NON_PROMISCUOUS;
-        int timeout = 10 * 1000; // in milliseconds
-        pcap = Pcap.openLive(netInterface.getName(), snaplen, flags, timeout, errorBuffer);
-
-        if(pcap == null) {
+        if (netInterface.size() == 0) {
             System.out.println("Network interface access error : " + errorBuffer.toString());
-            return;
         }
     }
 
@@ -75,34 +110,26 @@ public class PacketCapture {
      */
     public void packetDumper(int packetCount) throws Exception {
 
-        SimpleDateFormat format = new SimpleDateFormat ( "yyyy-MM-dd HHmmss");
-        String dateTime = format.format (System.currentTimeMillis());
+        for (PcapIf pcapIf: this.netInterface.keySet()) {
+            Pcap value = this.netInterface.get(pcapIf);
 
-        String fileName = "packet-" + dateTime +".pcap";
-        String filePath = "C:/temp/packet_capture";
-        String fullPath =  filePath + "/" + fileName;
-
-        Path path = Paths.get(filePath);
-        if(Files.notExists(path)) {
-            Files.createDirectories(path);
-        }
-
-        final PcapDumper dumper = pcap.dumpOpen(fullPath);
-        System.out.println("Capturing packets ....");
-
-        PcapPacketHandler<PcapDumper> dumpHandler = new PcapPacketHandler<PcapDumper>() {
-            @Override
-            public void nextPacket(PcapPacket pcapPacket, PcapDumper pcapDumper) {
-                dumper.dump(pcapPacket);
+            Path path = Paths.get(this.baseURL);
+            if(Files.notExists(path)) {
+                Files.createDirectories(path);
             }
-        };
 
-        pcap.loop(packetCount, dumpHandler, dumper);
-        File file = new File(fullPath);
-        System.out.printf("%s file has %d bytes in it!\n", fileName, file.length());
+            PCAPLooper looper = new PCAPLooper(pcapIf.getDescription(), value, this.baseURL, packetCount);
+            looper.start();
 
-        dumper.close();
-        pcap.close();
+            this.threadPool.add(looper);
+        }
+    }
+
+    public void stop() {
+        for (PCAPLooper looper : this.threadPool) {
+            if (looper.isAlive())
+                looper.interrupt();
+        }
     }
 
     /**
@@ -121,6 +148,6 @@ public class PacketCapture {
 
             }
         };
-        pcap.loop(packetCount, jPacketHandelr, "jNetPcap");
+        // pcap.loop(packetCount, jPacketHandelr, "jNetPcap");
     }
 }
